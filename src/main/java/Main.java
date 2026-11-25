@@ -1,178 +1,138 @@
-import zero.App;
-import zero.ui.Canvas;
-import zero.ui.Button;
-import zero.ui.Column;
-import zero.ui.Label;
-import javafx.animation.AnimationTimer;
-import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
-import javafx.scene.paint.Color;
+import zero.Color;
+import zero.GameApp;
+import zero.ui.Button;
+import zero.ui.Label;
+import zero.ui.Row;
 
-public class Main extends App {
-    // Player coordinates and size
-    double playerX = 50, playerY = 180, playerSize = 30;
-    double speed = 4;
+public class Main extends GameApp {
 
-    // Game objects (x, y, width, height)
-    double chargerX = 220, chargerY = 60, boxSize = 40;
-    double beaconX = 500, beaconY = 180;
-    double wallX = 160, wallY = 120, wallW = 25, wallH = 180;
-    double hazardX = 360, hazardY = 50, hazardSize = 35;
-    double hazardSpeedY = 3.5;
+    // Player position, size, and speed (pixels per second)
+    double playerX = 60;
+    double playerY = 230;
+    double playerSize = 32;
+    double speed = 220;
 
-    // Game state & Battery Timer
+    // Charging Station (centre coordinates and diameter)
+    double chargerX = 350;
+    double chargerY = 120;
+    double chargerDiameter = 36;
+
+    // Distress Beacon (top-left coordinates and size)
+    double beaconX = 680;
+    double beaconY = 225;
+    double beaconSize = 44;
+
+    // Game state booleans (Lesson 14, Step 4)
     boolean isCharged = false;
     boolean hasWon = false;
-    int chargeTimeLeft = 0;
-    final int MAX_CHARGE_TIME = 240; // ~4 seconds at 60 FPS
 
-    // Keyboard state
-    boolean up, down, left, right;
+    // HUD status label
     Label statusLabel;
 
     @Override
     public void settings() {
-        title("Zero Signal Rescue");
-        size(620, 480);
-        padding(15);
+        size(800, 500);
+        title("Zero-Signal Rescue");
     }
 
     @Override
     public void setup() {
-        statusLabel = new Label("Use Arrow Keys or WASD! Touch YELLOW Charger, avoid RED hazards.");
-        Canvas canvas = new Canvas(580, 380);
-        Button restartBtn = new Button("Restart");
-        restartBtn.setFocusTraversable(false); // Keeps arrow keys working on the game
-        restartBtn.onClick(() -> restart());
+        statusLabel = new Label("Battery low: Visit the gold charger first!");
+        Button restartButton = new Button("Restart");
+        restartButton.onClick(this::restart);
 
-        // Keyboard listeners on the scene
-        canvas.setFocusTraversable(true);
-        canvas.setOnKeyPressed(e -> {
-            KeyCode k = e.getCode();
-            if (k == KeyCode.UP || k == KeyCode.W) up = true;
-            if (k == KeyCode.DOWN || k == KeyCode.S) down = true;
-            if (k == KeyCode.LEFT || k == KeyCode.A) left = true;
-            if (k == KeyCode.RIGHT || k == KeyCode.D) right = true;
-        });
-
-        canvas.setOnKeyReleased(e -> {
-            KeyCode k = e.getCode();
-            if (k == KeyCode.UP || k == KeyCode.W) up = false;
-            if (k == KeyCode.DOWN || k == KeyCode.S) down = false;
-            if (k == KeyCode.LEFT || k == KeyCode.A) left = false;
-            if (k == KeyCode.RIGHT || k == KeyCode.D) right = false;
-        });
-
-        show(new Column(10, statusLabel, canvas, restartBtn));
-        canvas.requestFocus();
-
-        // 60 FPS Game Loop
-        GraphicsContext gc = canvas.getGraphicsContext2D();
-        new AnimationTimer() {
-            @Override
-            public void handle(long now) {
-                update(canvas.getWidth(), canvas.getHeight());
-                draw(gc, canvas.getWidth(), canvas.getHeight());
-            }
-        }.start();
+        // Mount HUD status and Restart button below the canvas
+        controls(new Row(16, restartButton, statusLabel));
     }
 
+    @Override
+    public void update(double seconds) {
+        if (hasWon) {
+            return; // Freeze player movement after winning
+        }
+
+        // Move player using elapsed seconds so speed stays consistent
+        if (keyDown(KeyCode.UP) || keyDown(KeyCode.W)) {
+            playerY -= speed * seconds;
+        }
+        if (keyDown(KeyCode.DOWN) || keyDown(KeyCode.S)) {
+            playerY += speed * seconds;
+        }
+        if (keyDown(KeyCode.LEFT) || keyDown(KeyCode.A)) {
+            playerX -= speed * seconds;
+        }
+        if (keyDown(KeyCode.RIGHT) || keyDown(KeyCode.D)) {
+            playerX += speed * seconds;
+        }
+
+        // Keep player inside canvas bounds
+        playerX = Math.max(0, Math.min(playerX, width() - playerSize));
+        playerY = Math.max(0, Math.min(playerY, height() - playerSize));
+
+        // 1. Check contact with Charging Station (circle centered at chargerX/Y)
+        double chargerRadius = chargerDiameter / 2.0;
+        if (!isCharged && overlaps(
+                playerX, playerY, playerSize, playerSize,
+                chargerX - chargerRadius, chargerY - chargerRadius, chargerDiameter, chargerDiameter)) {
+            isCharged = true;
+            statusLabel.setText("Charged! Reach the green beacon to win!");
+        }
+
+        // 2. Check contact with Beacon (only wins if charged first!)
+        if (isCharged && overlaps(
+                playerX, playerY, playerSize, playerSize,
+                beaconX, beaconY, beaconSize, beaconSize)) {
+            hasWon = true;
+            statusLabel.setText("Signal restored! You win!");
+        }
+    }
+
+    @Override
+    public void draw() {
+        // Clear canvas with a dark background
+        background(Color.rgb(22, 27, 38));
+
+        // Draw Charging Station (Gold before visit, dark gray after)
+        fill(isCharged ? Color.rgb(70, 75, 85) : Color.GOLD);
+        circle(chargerX, chargerY, chargerDiameter);
+
+        // Draw Distress Beacon (Bright green when unlocked, dim green when locked)
+        fill(isCharged ? Color.rgb(50, 220, 100) : Color.rgb(25, 95, 45));
+        rect(beaconX, beaconY, beaconSize, beaconSize);
+
+        // Draw Player Bot (Cyan when charged, blue when low battery)
+        fill(isCharged ? Color.rgb(0, 220, 255) : Color.BLUE);
+        rect(playerX, playerY, playerSize, playerSize);
+
+        // On-canvas banner text
+        fill(Color.WHITE);
+        textSize(20);
+        if (hasWon) {
+            textCentered("SIGNAL RESTORED! YOU WIN!", width() / 2, 50);
+        } else if (!isCharged) {
+            textCentered("Step 1: Touch the gold charger", width() / 2, 40);
+        } else {
+            textCentered("Step 2: Reach the green beacon!", width() / 2, 40);
+        }
+    }
+
+    // Lesson 14, Step 4: Reset player position, charger visit, and win state
     public void restart() {
-        playerX = 50;
-        playerY = 180;
+        playerX = 60;
+        playerY = 230;
         isCharged = false;
         hasWon = false;
-        chargeTimeLeft = 0;
-        hazardY = 50;
-        statusLabel.setText("Game restarted! Touch YELLOW Charger for 4s of power.");
+        statusLabel.setText("Battery low: Visit the gold charger first!");
+        canvas().requestFocus(); // Return keyboard focus to the game canvas
     }
 
-    private void update(double width, double height) {
-        if (hasWon) return;
-
-        // 1. Move Player
-        if (up && playerY > 0) playerY -= speed;
-        if (down && playerY < height - playerSize) playerY += speed;
-        if (left && playerX > 0) playerX -= speed;
-        if (right && playerX < width - playerSize) playerX += speed;
-
-        // 2. Move Patrol Hazard
-        hazardY += hazardSpeedY;
-        if (hazardY <= 10 || hazardY >= height - hazardSize - 10) {
-            hazardSpeedY = -hazardSpeedY;
-        }
-
-        // 3. Battery Timer Countdown
-        if (isCharged) {
-            chargeTimeLeft--;
-            double seconds = Math.round((chargeTimeLeft / 60.0) * 10.0) / 10.0;
-            statusLabel.setText("⚡ CHARGED! Reach the GREEN Beacon: " + seconds + "s left");
-            if (chargeTimeLeft <= 0) {
-                isCharged = false;
-                statusLabel.setText("Battery ran out! Recharge at the YELLOW Charger.");
-            }
-        }
-
-        // 4. Obstacle Collisions -> Instant Restart
-        if (collides(playerX, playerY, playerSize, playerSize, wallX, wallY, wallW, wallH) ||
-            collides(playerX, playerY, playerSize, playerSize, hazardX, hazardY, hazardSize, hazardSize)) {
-            restart();
-            statusLabel.setText("💥 Hit an obstacle! Restarted.");
-            return;
-        }
-
-        // 5. Charger Collision
-        if (collides(playerX, playerY, playerSize, playerSize, chargerX, chargerY, boxSize, boxSize)) {
-            isCharged = true;
-            chargeTimeLeft = MAX_CHARGE_TIME;
-        }
-
-        // 6. Beacon Collision (Win Rule)
-        if (collides(playerX, playerY, playerSize, playerSize, beaconX, beaconY, boxSize, boxSize) && isCharged) {
-            hasWon = true;
-            statusLabel.setText("🎉 SIGNAL SENT! YOU WIN! Click Restart to play again.");
-        }
+    // Bounding-box contact check helper
+    private boolean overlaps(double ax, double ay, double aw, double ah,
+                             double bx, double by, double bw, double bh) {
+        return ax < bx + bw &&
+               ax + aw > bx &&
+               ay < by + bh &&
+               ay + ah > by;
     }
-
-    private void draw(GraphicsContext gc, double width, double height) {
-        // Background
-        gc.setFill(Color.web("#1e1e2e"));
-        gc.fillRect(0, 0, width, height);
-
-        // Charger (Yellow)
-        gc.setFill(Color.GOLD);
-        gc.fillRect(chargerX, chargerY, boxSize, boxSize);
-        gc.setFill(Color.WHITE);
-        gc.fillText("Charger", chargerX - 2, chargerY - 6);
-
-        // Beacon (Green when unlocked, Gray when locked)
-        gc.setFill(isCharged ? Color.LIMEGREEN : Color.GRAY);
-        gc.fillRect(beaconX, beaconY, boxSize, boxSize);
-        gc.setFill(Color.WHITE);
-        gc.fillText("Beacon", beaconX, beaconY - 6);
-
-        // Obstacles (Red)
-        gc.setFill(Color.CRIMSON);
-        gc.fillRect(wallX, wallY, wallW, wallH);
-        gc.fillRect(hazardX, hazardY, hazardSize, hazardSize);
-
-        // Player Bot
-        gc.setFill(isCharged ? Color.CYAN : Color.LIGHTGRAY);
-        gc.fillRect(playerX, playerY, playerSize, playerSize);
-
-        // Shrinking Battery Bar above player
-        if (isCharged && !hasWon) {
-            double barWidth = (chargeTimeLeft / (double) MAX_CHARGE_TIME) * playerSize;
-            gc.setFill(Color.LIMEGREEN);
-            gc.fillRect(playerX, playerY - 8, barWidth, 5);
-        }
-    }
-
-    // Simple rectangle overlap check
-    private boolean collides(double x1, double y1, double w1, double h1,
-                             double x2, double y2, double w2, double h2) {
-        return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
-    }
-
-    public static void main(String[] args) { launch(args); }
 }
