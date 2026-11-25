@@ -1,136 +1,125 @@
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.*;
+import zero.App;
+import zero.ui.Label;
+import zero.ui.Button;
+import zero.ui.Column;
+import zero.ui.Row;
 
-public class Main extends JPanel implements ActionListener, KeyListener {
-    // Player coordinates and size
-    int playerX = 50, playerY = 200, playerSize = 30;
-    int speed = 5;
-
-    // Charger and Beacon rectangles
-    Rectangle charger = new Rectangle(250, 100, 40, 40);
-    Rectangle beacon = new Rectangle(450, 200, 40, 40);
-
-    // Game state booleans
-    boolean isCharged = false;
+public class Main extends App {
+    // Player Grid Position (5x5 grid)
+    int playerX = 0;
+    int playerY = 2;
+    int battery = 0; // Battery countdown steps
     boolean hasWon = false;
+    boolean gameOver = false;
 
-    // Movement flags
-    boolean up, down, left, right;
+    // Game locations on the grid
+    final int chargerX = 2, chargerY = 1;
+    final int beaconX = 4, beaconY = 2;
+    final int hazardX = 3, hazardY = 2; // Red obstacle
 
-    Timer timer;
+    Label statusLabel;
+    Label batteryLabel;
+    Label posLabel;
 
-    public Main() {
-        setPreferredSize(new Dimension(600, 400));
-        setBackground(Color.DARK_GRAY);
-        setFocusable(true);
-        addKeyListener(this);
-
-        // Add a Restart button at the top
-        JButton restartBtn = new JButton("Restart");
-        restartBtn.setFocusable(false); // Keeps keyboard focus on the game
-        restartBtn.addActionListener(e -> restart());
-        add(restartBtn);
-
-        // Game loop running at ~60 FPS
-        timer = new Timer(16, this);
-        timer.start();
+    @Override public void settings() {
+        title("Zero Signal Rescue");
+        size(450, 400);
+        padding(20);
     }
 
-    // Resets the player position, charger visit, and win state
-    public void restart() {
-        playerX = 50;
-        playerY = 200;
-        isCharged = false;
-        hasWon = false;
-        repaint();
+    @Override public void setup() {
+        statusLabel = new Label("Mission: Visit the Charger at (2,1), then reach the Beacon!");
+        batteryLabel = new Label("Battery: Empty (0 steps)");
+        posLabel = new Label("Position: (0, 2)");
+
+        Button upBtn = new Button("↑ Up");
+        Button downBtn = new Button("↓ Down");
+        Button leftBtn = new Button("← Left");
+        Button rightBtn = new Button("→ Right");
+        Button restartBtn = new Button("🔄 Restart");
+
+        upBtn.onClick(() -> move(0, -1));
+        downBtn.onClick(() -> move(0, 1));
+        leftBtn.onClick(() -> move(-1, 0));
+        rightBtn.onClick(() -> move(1, 0));
+        restartBtn.onClick(() -> restart());
+
+        Row moveControls = new Row(10, leftBtn, upBtn, downBtn, rightBtn);
+
+        show(new Column(15, 
+            new Label("🤖 Zero Signal Rescue"),
+            statusLabel,
+            batteryLabel,
+            posLabel,
+            new Label("Controls:"),
+            moveControls,
+            restartBtn
+        ));
     }
 
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        if (!hasWon) {
-            // Update player position
-            if (up && playerY > 0) playerY -= speed;
-            if (down && playerY < getHeight() - playerSize) playerY += speed;
-            if (left && playerX > 0) playerX -= speed;
-            if (right && playerX < getWidth() - playerSize) playerX += speed;
+    public void move(int dx, int dy) {
+        if (hasWon || gameOver) return;
 
-            // Create hitbox for player
-            Rectangle playerBox = new Rectangle(playerX, playerY, playerSize, playerSize);
+        int newX = playerX + dx;
+        int newY = playerY + dy;
 
-            // Check contact with Charger
-            if (playerBox.intersects(charger)) {
-                isCharged = true;
+        // Check grid boundaries
+        if (newX < 0 || newX > 4 || newY < 0 || newY > 4) {
+            statusLabel.setText("Hit the boundary! Stay inside the 5x5 grid.");
+            return;
+        }
+
+        playerX = newX;
+        playerY = newY;
+        posLabel.setText("Position: (" + playerX + ", " + playerY + ")");
+
+        // Drain battery per step if charged
+        if (battery > 0) {
+            battery--;
+            batteryLabel.setText("Battery: " + battery + " steps remaining");
+            if (battery <= 0) {
+                statusLabel.setText("Battery ran out! Recharge at the Charger station.");
             }
+        }
 
-            // Check contact with Beacon (only works if charged!)
-            if (playerBox.intersects(beacon) && isCharged) {
+        // Check hazard obstacle collision
+        if (playerX == hazardX && playerY == hazardY) {
+            gameOver = true;
+            statusLabel.setText("💥 Hit a hazard obstacle! Game Over. Click Restart.");
+            batteryLabel.setText("Battery: Dead");
+            return;
+        }
+
+        // Check Charger collision
+        if (playerX == chargerX && playerY == chargerY) {
+            battery = 4; // 4 steps of charge power
+            statusLabel.setText("⚡ Charged! You have 4 steps to reach the Beacon!");
+            batteryLabel.setText("Battery: 4 steps remaining");
+            return;
+        }
+
+        // Check Beacon collision (Win condition)
+        if (playerX == beaconX && playerY == beaconY) {
+            if (battery > 0) {
                 hasWon = true;
+                statusLabel.setText("🎉 SIGNAL SENT! You won the game!");
+            } else {
+                statusLabel.setText(" Beacon reached, but battery is dead! Visit the charger first.");
             }
-        }
-        repaint();
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-
-        // Draw Charger (Yellow if active, Gray if already used)
-        g.setColor(isCharged ? Color.GRAY : Color.YELLOW);
-        g.fillRect(charger.x, charger.y, charger.width, charger.height);
-        g.setColor(Color.WHITE);
-        g.drawString("Charger", charger.x - 2, charger.y - 5);
-
-        // Draw Beacon (Green if unlocked, Red if locked)
-        g.setColor(isCharged ? Color.GREEN : Color.RED);
-        g.fillRect(beacon.x, beacon.y, beacon.width, beacon.height);
-        g.setColor(Color.WHITE);
-        g.drawString("Beacon", beacon.x, beacon.y - 5);
-
-        // Draw Player Bot
-        g.setColor(Color.CYAN);
-        g.fillRect(playerX, playerY, playerSize, playerSize);
-
-        // Draw Status / Win Message
-        g.setColor(Color.WHITE);
-        g.setFont(new Font("Arial", Font.BOLD, 16));
-        if (hasWon) {
-            g.drawString("SIGNAL SENT! YOU WIN! Press Restart to play again.", 100, 350);
-        } else if (!isCharged) {
-            g.drawString("Status: Low Battery. Visit the Charger first!", 20, 380);
-        } else {
-            g.drawString("Status: Charged! Reach the Green Beacon!", 20, 380);
+            return;
         }
     }
 
-    // Keyboard Controls (Arrow keys or WASD)
-    @Override
-    public void keyPressed(KeyEvent e) {
-        int key = e.getKeyCode();
-        if (key == KeyEvent.VK_UP || key == KeyEvent.VK_W) up = true;
-        if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S) down = true;
-        if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_A) left = true;
-        if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D) right = true;
+    public void restart() {
+        playerX = 0;
+        playerY = 2;
+        battery = 0;
+        hasWon = false;
+        gameOver = false;
+        statusLabel.setText("Game restarted. Visit the Charger at (2,1)!");
+        batteryLabel.setText("Battery: Empty (0 steps)");
+        posLabel.setText("Position: (0, 2)");
     }
 
-    @Override
-    public void keyReleased(KeyEvent e) {
-        int key = e.getKeyCode();
-        if (key == KeyEvent.VK_UP || key == KeyEvent.VK_W) up = false;
-        if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S) down = false;
-        if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_A) left = false;
-        if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D) right = false;
-    }
-
-    @Override
-    public void keyTyped(KeyEvent e) {}
-
-    public static void main(String[] args) {
-        JFrame frame = new JFrame("Zero Signal Rescue");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.add(new Main());
-        frame.pack();
-        frame.setLocationRelativeTo(null);
-        frame.setVisible(true);
-    }
+    public static void main(String[] args) { launch(args); }
 }
