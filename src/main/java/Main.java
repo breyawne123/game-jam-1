@@ -1,4 +1,3 @@
-import javafx.scene.input.KeyCode;
 import zero.Color;
 import zero.GameApp;
 import zero.ui.Button;
@@ -23,7 +22,7 @@ public class Main extends GameApp {
     double beaconY = 225;
     double beaconSize = 44;
 
-    // Game state booleans (Lesson 14, Step 4)
+    // Game state booleans
     boolean isCharged = false;
     boolean hasWon = false;
 
@@ -52,17 +51,17 @@ public class Main extends GameApp {
             return; // Freeze player movement after winning
         }
 
-        // Move player using elapsed seconds so speed stays consistent
-        if (keyDown(KeyCode.UP) || keyDown(KeyCode.W)) {
+        // Move player using arrow keys (fully browser-compatible)
+        if (keyDown(javafx.scene.input.KeyCode.UP)) {
             playerY -= speed * seconds;
         }
-        if (keyDown(KeyCode.DOWN) || keyDown(KeyCode.S)) {
+        if (keyDown(javafx.scene.input.KeyCode.DOWN)) {
             playerY += speed * seconds;
         }
-        if (keyDown(KeyCode.LEFT) || keyDown(KeyCode.A)) {
+        if (keyDown(javafx.scene.input.KeyCode.LEFT)) {
             playerX -= speed * seconds;
         }
-        if (keyDown(KeyCode.RIGHT) || keyDown(KeyCode.D)) {
+        if (keyDown(javafx.scene.input.KeyCode.RIGHT)) {
             playerX += speed * seconds;
         }
 
@@ -70,7 +69,7 @@ public class Main extends GameApp {
         playerX = Math.max(0, Math.min(playerX, width() - playerSize));
         playerY = Math.max(0, Math.min(playerY, height() - playerSize));
 
-        // 1. Check contact with Charging Station (circle centered at chargerX/Y)
+        // 1. Check contact with Charging Station
         double chargerRadius = chargerDiameter / 2.0;
         if (!isCharged && overlaps(
                 playerX, playerY, playerSize, playerSize,
@@ -117,17 +116,15 @@ public class Main extends GameApp {
         }
     }
 
-    // Lesson 14, Step 4: Reset player position, charger visit, and win state
     public void restart() {
         playerX = 60;
         playerY = 230;
         isCharged = false;
         hasWon = false;
         statusLabel.setText("Battery low: Visit the gold charger first!");
-        canvas().requestFocus(); // Return keyboard focus to the game canvas
+        canvas().requestFocus();
     }
 
-    // Bounding-box contact check helper
     private boolean overlaps(double ax, double ay, double aw, double ah,
                              double bx, double by, double bw, double bh) {
         return ax < bx + bw &&
